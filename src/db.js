@@ -154,6 +154,11 @@ const MIGRATIONS = [
     PRIMARY KEY (account_id, provider_id)
   );
   `,
+  `
+  -- A reply Pinger drafted ahead of time (auto-draft), tied to the message it answers.
+  ALTER TABLE threads ADD COLUMN draft_text TEXT;
+  ALTER TABLE threads ADD COLUMN draft_for_message_id INTEGER;
+  `,
 ];
 
 export function initDb(file) {

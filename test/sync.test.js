@@ -192,3 +192,45 @@ test('no pings outside ping hours', async () => {
   emailPings(new Date(2026, 10, 23, 23, 30));
   assert.equal(all('SELECT * FROM pings').length, 0);
 });
+
+test('auto-draft: off by default; on, it pre-writes a reply for each thread that needs one', async () => {
+  const { updateSettings } = await import('../src/settings.js');
+  const { publicThread } = await import('../src/core/sync.js');
+  const calls = fakeAi((params) => {
+    if (params.system.includes('triage engine')) {
+      return { threads: JSON.parse(params.messages[0].content).threads.map((t) => ({ id: t.id, category: t.last_from === 'them' ? 'needs_reply' : 'awaiting_reply', priority: 'medium', summary: 's', ask: 'a', next_step: 'n', due: null })) };
+    }
+    return 'Hi Priya,\n\nLet me confirm and get back to you.\n\nAlex';
+  });
+
+  const inbound = mail({ now, from: PRIYA, thread: 'renewal', subject: 'Renewal', body: 'Can you confirm the plan?', ago: 5 * HOUR });
+  const waitingMail = mail({ now, from: ME, to: [ELENA], thread: 'proposal', subject: 'Proposal', body: 'Could you let me know?', ago: 2 * HOUR });
+  await sync([inbound, waitingMail]);
+  assert.equal(get('SELECT draft_text FROM threads WHERE subject = ?', 'Renewal').draft_text, null, 'off by default');
+  const draftCalls0 = calls.filter((c) => !c.system.includes('triage engine')).length;
+  assert.equal(draftCalls0, 0);
+
+  updateSettings({ ai: { autoDraft: true } });
+  await sync([inbound, waitingMail]);
+  const needs = listThreads({ state: 'needs_reply', now: NOW })[0];
+  assert.match(get('SELECT draft_text FROM threads WHERE id = ?', needs.id).draft_text, /Let me confirm/);
+  assert.match(publicThread(needs, undefined, NOW).draft, /Let me confirm/);
+  // Only threads that need a reply are drafted — not the "waiting on others" one.
+  assert.equal(get('SELECT draft_text FROM threads WHERE subject = ?', 'Proposal').draft_text, null);
+  const draftCalls1 = calls.filter((c) => !c.system.includes('triage engine')).length;
+  assert.equal(draftCalls1, 1);
+});
+
+test('auto-draft: a reply is not re-drafted until a new message arrives', async () => {
+  const { updateSettings } = await import('../src/settings.js');
+  updateSettings({ ai: { autoDraft: true } });
+  const calls = fakeAi((params) => (params.system.includes('triage engine')
+    ? { threads: JSON.parse(params.messages[0].content).threads.map((t) => ({ id: t.id, category: 'needs_reply', priority: 'medium', summary: 's', ask: 'a', next_step: 'n', due: null })) }
+    : 'Draft body.'));
+  const first = mail({ now, from: PRIYA, thread: 'a', body: 'Can you confirm?', ago: 5 * HOUR });
+  await sync([first]);
+  await sync([first]);
+  assert.equal(calls.filter((c) => !c.system.includes('triage engine')).length, 1, 'unchanged thread not re-drafted');
+  await sync([first, mail({ now, from: PRIYA, thread: 'a', body: 'Any update?', ago: HOUR })]);
+  assert.equal(calls.filter((c) => !c.system.includes('triage engine')).length, 2, 'a new message gets a fresh draft');
+});

@@ -87,7 +87,7 @@ With a [Claude API key](https://platform.claude.com) (Settings → AI), Pinger a
 
 - judges what really needs a reply and writes a one-line summary of each thread,
 - writes the briefing at the top of each overview,
-- drafts replies and nudges for you to review and send yourself,
+- drafts replies and nudges for you to review and send yourself (turn on **Auto-draft replies** in Settings → AI and Pinger pre-writes one for every email that needs a reply, ready and waiting),
 - turns transcripts into a summary, decisions, action items and dated follow-ups,
 - answers questions about past meetings.
 

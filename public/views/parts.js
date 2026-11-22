@@ -434,6 +434,19 @@ export function AiKeyForm() {
         ${state.models.map((m) => html`<option value=${m.id}>${m.label} — ${m.note}</option>`)}
       </select>
     </div>
+    ${(apiKeySet || state.ai.enabled) &&
+    html`<label class="checkline">
+      <input
+        type="checkbox"
+        checked=${state.settings.ai.autoDraft}
+        onChange=${(e) => run(async () => {
+          await api('/api/settings', { method: 'PUT', body: { ai: { autoDraft: e.target.checked } } });
+          await refreshState();
+          toast(e.target.checked ? 'Auto-draft on. Pinger will write a reply for each new email that needs one.' : 'Auto-draft off.');
+        })}
+      />
+      <span>Auto-draft replies <span class="muted" style="font-weight:400">— pre-write a reply for each email that needs one, ready to edit. Uses your key on each new email.</span></span>
+    </label>`}
     <p class="hint">
       Keys are issued at <a href="https://platform.claude.com" target="_blank" rel="noreferrer">platform.claude.com</a>. With a key, the text of
       emails that may need a reply and of your meeting transcripts is sent to Anthropic's Claude API, billed to you by Anthropic. Without a

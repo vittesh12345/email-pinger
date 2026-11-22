@@ -2,7 +2,7 @@
 
 import { getAccount, ownAddresses, ownNames, setAccountStatus } from '../accounts.js';
 import { aiEnabled } from '../ai/client.js';
-import { triageThreads } from '../ai/tasks.js';
+import { draftEmail, triageThreads } from '../ai/tasks.js';
 import { all, get, run, tx } from '../db.js';
 import { runtime } from '../events.js';
 import { createProvider } from '../providers/index.js';
@@ -59,6 +59,13 @@ async function doSync(accountId, { now = new Date(), provider } = {}) {
       runtime.aiError = null;
     } catch (err) {
       runtime.aiError = err.message; // the rule-based answer stands; surface why AI did not run
+    }
+    if (settings.ai.autoDraft) {
+      try {
+        await autoDraftThreads(accountId, settings, now);
+      } catch (err) {
+        runtime.aiError = err.message;
+      }
     }
   }
 
@@ -275,6 +282,39 @@ async function enrichThreads(accountId, settings, now) {
   return analysed;
 }
 
+const AUTO_DRAFT_MAX = 12;
+
+/**
+ * Pre-write a reply for each open conversation that needs one and does not yet have a draft for
+ * its latest message. Opt-in (settings.ai.autoDraft); spends the user's AI key on each new email.
+ */
+async function autoDraftThreads(accountId, settings, now) {
+  const pending = all(
+    `SELECT * FROM threads
+     WHERE account_id = ? AND state = 'needs_reply' AND user_status = 'open'
+       AND (draft_for_message_id IS NULL OR draft_for_message_id != last_message_id)
+     ORDER BY last_at DESC LIMIT ?`,
+    accountId,
+    AUTO_DRAFT_MAX,
+  );
+  if (!pending.length) return 0;
+  const account = getAccount(accountId);
+  const profile = { name: settings.profile.name || account.name || '', emails: [...ownAddresses(account, settings)] };
+  let drafted = 0;
+  for (const t of pending) {
+    const text = await draftEmail({ kind: 'reply', subject: t.subject, messages: threadForAi(t, 5) }, profile);
+    run(
+      'UPDATE threads SET draft_text = ?, draft_for_message_id = ? WHERE id = ? AND last_message_id = ?',
+      truncate(text, 6000),
+      t.last_message_id,
+      t.id,
+      t.last_message_id,
+    );
+    drafted++;
+  }
+  return drafted;
+}
+
 /**
  * Threads that deserve a ping of their own right now and have not had one for their latest message:
  * high-priority mail awaiting the user's reply, and threads where the other side has gone quiet.
@@ -346,6 +386,7 @@ export function publicThread(t, settings = getSettings(), now = new Date()) {
     ask: aiFresh ? t.ai_ask : null,
     nextStep: aiFresh ? t.ai_next_step : null,
     due: aiFresh ? t.ai_due : null,
+    draft: t.draft_for_message_id != null && t.draft_for_message_id === t.last_message_id ? t.draft_text : null,
     preview: truncate(stripQuoted(t.last_body || '').replace(/\s+/g, ' '), 220),
     webLink: safeLink(t.web_link),
   };

@@ -15,7 +15,7 @@ export const DEFAULTS = {
   pingHours: { start: '08:00', end: '20:00' },
   meetings: { prompt: true, leadMinutes: 1, language: 'en-US' },
   calendar: { icsUrls: [] },
-  ai: { apiKey: '', model: MODELS[0].id },
+  ai: { apiKey: '', model: MODELS[0].id, autoDraft: false },
   sync: { intervalMinutes: 10, lookbackDays: 14 },
   onboarded: false,
 };
@@ -147,6 +147,7 @@ export function validatePatch(patch) {
       if (!MODELS.some((m) => m.id === patch.ai.model)) throw new HttpError(400, 'Unknown model');
       out.ai.model = patch.ai.model;
     }
+    if (patch.ai.autoDraft != null) out.ai.autoDraft = !!patch.ai.autoDraft;
   }
   if (isObj(patch.sync)) {
     out.sync = {};
@@ -182,6 +183,7 @@ export function publicSettings(settings = getSettings()) {
     ...settings,
     ai: {
       model: settings.ai.model,
+      autoDraft: !!settings.ai.autoDraft,
       apiKeySet: !!key,
       apiKeyHint: key ? `${key.slice(0, 7)}…${key.slice(-4)}` : '',
     },

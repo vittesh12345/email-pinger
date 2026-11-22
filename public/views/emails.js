@@ -5,8 +5,10 @@ import {
 
 function Draft({ thread, waiting }) {
   const [instruction, setInstruction] = useState('');
-  const [result, setResult] = useState(null);
-  const [text, setText] = useState('');
+  // A draft Pinger wrote ahead of time (auto-draft) shows immediately, ready to edit.
+  const ready = thread.draft ? { draft: thread.draft, to: thread.person.email, subject: `Re: ${thread.subject}` } : null;
+  const [result, setResult] = useState(ready);
+  const [text, setText] = useState(thread.draft || '');
   const [busy, run] = useAction();
 
   const make = () =>
@@ -62,7 +64,7 @@ function Conversation({ id }) {
 
 function ThreadItem({ t, waiting, open, onToggle, aiOn }) {
   const [busy, run] = useAction();
-  const [drafting, setDrafting] = useState(false);
+  const [drafting, setDrafting] = useState(!!t.draft);
   const act = (action, until) => run(() => api(`/api/threads/${t.id}/action`, { method: 'POST', body: { action, until } }));
   const due = dueLabel(t.due);
   const handled = t.status !== 'open';
@@ -81,6 +83,7 @@ function ThreadItem({ t, waiting, open, onToggle, aiOn }) {
 
     <div class="meta">
       ${t.priority === 'high' && html`<span class="chip high">High</span>`}
+      ${t.draft && !handled && html`<span class="chip good">Draft ready</span>`}
       ${waiting && t.overdue && html`<span class="chip medium">No reply</span>`}
       ${due && html`<span class=${`chip ${due.cls}`}>${due.text}</span>`}
       ${t.source === 'ai' ? html`<span class="chip plain">AI</span>` : t.reasons.slice(0, 2).map((r) => html`<span class="chip plain">${r}</span>`)}

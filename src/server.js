@@ -145,7 +145,10 @@ export function createApp() {
       background(tick());
     }
     if (before.ai.apiKey !== after.ai.apiKey || before.ai.model !== after.ai.model) runtime.aiError = null;
-    if (before.sync.lookbackDays !== after.sync.lookbackDays && listAccounts().length) {
+    if (
+      (before.sync.lookbackDays !== after.sync.lookbackDays || (!before.ai.autoDraft && after.ai.autoDraft)) &&
+      listAccounts().length
+    ) {
       background(syncAll({ force: true }).then(() => tick()));
     }
     changed('status');
