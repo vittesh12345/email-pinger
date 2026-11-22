@@ -4,7 +4,7 @@ import path from 'node:path';
 import express from 'express';
 
 import { createAccount, deleteAccount, getAccount, listAccounts, publicAccount } from './accounts.js';
-import { aiConfig, aiEnabled } from './ai/client.js';
+import { aiConfig, aiEnabled, complete } from './ai/client.js';
 import { draftEmail } from './ai/tasks.js';
 import { APP_ROOT, dataDir, EXTENSION_DIR, EXTENSION_ID, readSharedConfig, VERSION, writeSharedConfig } from './config.js';
 import { getEvent, setPromptState, upcomingEvents } from './core/calendar.js';
@@ -145,6 +145,9 @@ export function createApp() {
       background(tick());
     }
     if (before.ai.apiKey !== after.ai.apiKey || before.ai.model !== after.ai.model) runtime.aiError = null;
+    if (before.sync.lookbackDays !== after.sync.lookbackDays && listAccounts().length) {
+      background(syncAll({ force: true }).then(() => tick()));
+    }
     changed('status');
     res.json(state());
   });
@@ -508,6 +511,16 @@ export function createApp() {
   /* ----------------------------------------------------------------- pings */
 
   app.get('/api/pings', (req, res) => res.json({ pings: recentPings(30) }));
+
+  app.post('/api/ai/test', async (req, res) => {
+    try {
+      const reply = await complete({ system: 'You are a connection test. Reply with exactly: OK', prompt: 'ping', effort: 'low' });
+      res.json({ ok: true, model: aiConfig().model, reply: String(reply).slice(0, 40) });
+    } catch (err) {
+      runtime.aiError = err.code === 'not_configured' ? null : err.message;
+      res.json({ ok: false, code: err.code || 'ai_error', error: err.message });
+    }
+  });
 
   app.post('/api/pings/test', (req, res) => {
     res.json({ ping: ping({ type: 'test', title: 'Pinger is working', body: 'This is what a ping looks like.', url: '/#/settings' }) });

@@ -81,6 +81,8 @@ For the meeting pop-up with a non-Outlook calendar, add its private `.ics` link 
 
 Without a key, Pinger sorts mail with built-in rules (who wrote last, questions, requests, deadlines, automated senders).
 
+Check a key is working any time with **Test key** in Settings → AI.
+
 With a [Claude API key](https://platform.claude.com) (Settings → AI), Pinger also:
 
 - judges what really needs a reply and writes a one-line summary of each thread,
@@ -118,7 +120,7 @@ Your personal data is **not** in this folder — it lives in your user profile (
 ## Limits
 
 - Pinger only works while it is running on your computer. It is not a cloud service and does not ping your phone.
-- It looks at the last 14 days of mail by default.
+- It looks at the last 14 days of mail by default (change it under Settings → Reminders → "Only look at mail from the past ___ days").
 - Outlook and Gmail/IMAP connections are covered by automated tests against simulated servers; live transcription depends on your browser.
 - It is not an Outlook add-in: it does not appear inside the Outlook desktop app. Use the side panel (Outlook on the web) or the mini window (any mail app) to keep it next to your mail.
 - The side panel and mini window change where Pinger is shown. Reading Outlook mail needs one of: the Outlook app on Windows, Outlook in the browser (via the extension), or the Microsoft sign-in.

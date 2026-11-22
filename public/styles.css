@@ -643,6 +643,11 @@ input[type='checkbox'] {
   border-color: var(--border);
   color: var(--text-2);
 }
+.banner.good {
+  background: transparent;
+  border-color: var(--ok);
+  color: var(--ok);
+}
 .banner.busy {
   display: flex;
   align-items: center;

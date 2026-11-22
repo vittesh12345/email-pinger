@@ -376,6 +376,7 @@ export function AiKeyForm() {
   const { state } = useStore();
   const [key, setKey] = useState('');
   const [busy, run] = useAction();
+  const [test, setTest] = useState(null);
   const { apiKeySet, apiKeyHint, model } = state.settings.ai;
 
   const save = (apiKey) =>
@@ -383,15 +384,28 @@ export function AiKeyForm() {
       await api('/api/settings', { method: 'PUT', body: { ai: { apiKey } } });
       await refreshState();
       setKey('');
+      setTest(null);
       toast(apiKey ? 'AI key saved' : 'AI key removed');
+    });
+
+  const check = () =>
+    run(async () => {
+      setTest({ state: 'testing' });
+      const r = await api('/api/ai/test', { method: 'POST' });
+      setTest(r.ok ? { state: 'ok', model: r.model } : { state: 'fail', error: r.error });
     });
 
   return html`<div class="stack">
     ${apiKeySet
-      ? html`<div class="row wrap">
-          <span class="chip good">AI on</span>
-          <code>${apiKeyHint}</code>
-          <button class="btn sm danger" disabled=${busy} onClick=${() => save('')}>Remove key</button>
+      ? html`<div class="stack tight">
+          <div class="row wrap">
+            <span class="chip good">AI on</span>
+            <code>${apiKeyHint}</code>
+            <button class="btn sm" disabled=${busy} onClick=${check}>${test?.state === 'testing' ? html`<${Spinner} /> Testing` : 'Test key'}</button>
+            <button class="btn sm danger" disabled=${busy} onClick=${() => save('')}>Remove key</button>
+          </div>
+          ${test?.state === 'ok' && html`<div class="banner good">Your key works. Replies and summaries are on.</div>`}
+          ${test?.state === 'fail' && html`<div class="banner error">${test.error}</div>`}
         </div>`
       : html`<div class="row">
           <input

@@ -130,8 +130,14 @@ function Rules() {
   const m = state.settings.meetings;
   const num = (value, fallback) => (Number.isFinite(Number(value)) && value !== '' ? Number(value) : fallback);
   return html`
-    <${Section} id="followup-rules" title="Reminders" sub="Pings between overviews">
+    <${Section} id="followup-rules" title="Reminders" sub="What Pinger reads, and when it pings you">
       <div>
+        <div class="setting-row">
+          <div class="text"><strong>Only look at mail from the past</strong></div>
+          <input class="inline" type="number" min="3" max="60" style="width:60px" aria-label="Days of mail to check" value=${state.settings.sync.lookbackDays}
+            onChange=${(e) => saveSettings({ sync: { lookbackDays: num(e.target.value, state.settings.sync.lookbackDays) } })} />
+          <span class="muted">days</span>
+        </div>
         <div class="setting-row">
           <div class="text"><strong>Nudge when someone has not replied after</strong></div>
           <input class="inline" type="number" min="1" max="30" style="width:60px" aria-label="Days before a nudge" value=${f.awaitingDays}
