@@ -26,7 +26,15 @@ To look around before connecting anything, choose **Sample data** in setup. It a
 
 ## Connect your email
 
-### Outlook, Hotmail, Microsoft 365
+### Outlook app on a Windows PC (no setup)
+
+If the classic Outlook desktop app is installed and signed in on your Windows PC, choose **Outlook app on this PC**. Pinger reads your mailbox and calendar through that app, on your computer: no Microsoft registration and no approval request. It only reads; it never changes, moves or sends anything.
+
+- Outlook may show a security prompt saying a program is trying to access it. Choose **Allow**.
+- On some work PCs, IT settings stop other programs from reading Outlook or stop scripts from running. Pinger then says so, and this option won't work without IT.
+- Not available on Mac: the new Outlook for Mac does not let other programs read mail. On a Mac, use Outlook in the browser with the side panel, or the sign-in option below.
+
+### Outlook, Hotmail, Microsoft 365 (sign in)
 
 Microsoft requires every program that reads Outlook mail to be registered. It is free and you do it once:
 
@@ -123,7 +131,7 @@ npm start
 ```
 
 - `src/core/` — triage rules, mail sync, overview, follow-ups, meeting memory, calendar.
-- `src/providers/` — Outlook (Microsoft Graph), IMAP, `.ics` calendars, sample data.
+- `src/providers/` — Outlook (Microsoft Graph), Outlook desktop app on Windows (PowerShell + COM), IMAP, `.ics` calendars, sample data.
 - `src/ai/` — the Claude API client and prompts.
 - `src/scheduler.js` — the loop that syncs mail and fires pings.
 - `public/` — the interface (Preact, no build step).

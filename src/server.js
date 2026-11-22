@@ -27,6 +27,7 @@ import { all, run, tx } from './db.js';
 import { addClient, changed, runtime } from './events.js';
 import { ping, recentPings } from './pings.js';
 import { DEMO_EMAIL, demoIdentity, sampleTranscript } from './providers/demo.js';
+import { createOutlookDesktopProvider, outlookDesktopAvailable } from './providers/outlook-desktop.js';
 import { createImapProvider, imapDefaults } from './providers/imap.js';
 import { authorizeUrl, createOutlookProvider, pkcePair, redeemCode } from './providers/outlook.js';
 import { calendarStale, nextOverviewAt, syncAll, tick } from './scheduler.js';
@@ -118,6 +119,8 @@ export function createApp() {
       nextOverviewAt: next ? next.toISOString() : null,
       dataDir: dataDir(),
       extensionDir: EXTENSION_DIR,
+      platform: process.platform,
+      outlookDesktop: outlookDesktopAvailable(),
       demoEmail: DEMO_EMAIL,
     };
   }
@@ -166,6 +169,22 @@ export function createApp() {
     await syncAll({ force: true });
     background(tick());
     res.json({ account: publicAccount(getAccount(account.id)) });
+  });
+
+  app.post('/api/accounts/outlook-desktop', async (req, res) => {
+    if (!outlookDesktopAvailable()) {
+      throw new HttpError(400, 'Reading the Outlook desktop app is available on Windows only. On a Mac, use Gmail/IMAP or the Outlook sign-in option.');
+    }
+    let me;
+    try {
+      me = await createOutlookDesktopProvider({ config: {} }).test();
+    } catch (err) {
+      throw new HttpError(400, err.message);
+    }
+    const account = createAccount({ kind: 'outlook_desktop', email: me.email, name: me.name, config: {} });
+    calendarStale();
+    background(syncAll({ force: true }).then(() => tick()));
+    res.json({ account: publicAccount(account) });
   });
 
   app.get('/api/accounts/imap-defaults', (req, res) => res.json(imapDefaults(String(req.query.email || ''))));

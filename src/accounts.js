@@ -54,7 +54,7 @@ export function publicAccount(a) {
     status: a.status,
     statusDetail: a.status_detail,
     lastSyncAt: a.last_sync_at,
-    hasCalendar: a.kind === 'outlook' || a.kind === 'demo',
+    hasCalendar: a.kind === 'outlook' || a.kind === 'outlook_desktop' || a.kind === 'demo',
   };
 }
 

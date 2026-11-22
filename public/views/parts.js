@@ -137,11 +137,24 @@ export function ConnectEmail({ onConnected }) {
     else setMode(mode === 'outlook' ? null : 'outlook');
   };
 
+  const desktop = () =>
+    run(async () => {
+      await api('/api/accounts/outlook-desktop', { method: 'POST' });
+      await refreshState();
+      toast('Outlook connected', { body: 'Reading your mailbox from the Outlook app.' });
+      onConnected?.();
+    });
+
   return html`<div class="stack">
     <div class="options">
+      ${state.outlookDesktop &&
+      html`<button class="option" disabled=${busy} onClick=${desktop}>
+        <strong>${busy ? 'Connecting…' : 'Outlook app on this PC'}</strong>
+        <span class="small muted">Reads the Outlook desktop app you're already signed into. No setup, no IT approval.</span>
+      </button>`}
       <button class="option" onClick=${outlook}>
-        <strong>Outlook</strong>
-        <span class="small muted">Outlook.com, Hotmail, Microsoft 365. Mail and calendar.</span>
+        <strong>Outlook${state.outlookDesktop ? ' (sign in)' : ''}</strong>
+        <span class="small muted">Outlook.com, Hotmail, Microsoft 365, via Microsoft sign-in. Mail and calendar.</span>
       </button>
       <button class="option" onClick=${() => setMode(mode === 'imap' ? null : 'imap')}>
         <strong>Gmail and others</strong>
