@@ -1,0 +1,30 @@
+{
+  "name": "email-pinger",
+  "version": "0.1.0",
+  "description": "Pinger \u2014 a local follow-up assistant for your email and meetings",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "pinger": "bin/pinger.js"
+  },
+  "scripts": {
+    "start": "node bin/pinger.js",
+    "demo": "node bin/pinger.js --demo",
+    "test": "node --test --disable-warning=ExperimentalWarning \"test/*.test.js\""
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.12.0",
+    "express": "^5.3.0",
+    "htm": "^3.1.1",
+    "imapflow": "^2.12.2",
+    "mailparser": "^3.15.0",
+    "node-ical": "^0.27.6",
+    "preact": "^11.2.0"
+  },
+  "optionalDependencies": {
+    "node-notifier": "^12.1.0"
+  }
+}

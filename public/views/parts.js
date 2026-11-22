@@ -1,0 +1,330 @@
+// Setup pieces shared by the first-run wizard and the Settings page.
+
+import { useEffect, useState } from 'preact/hooks';
+import { api, html, Icon, oops, refreshState, Spinner, toast, useAction, useStore } from '../lib.js';
+
+/* ---------------------------------------------------------- connect email */
+
+function OutlookSetup({ onSaved }) {
+  const { state } = useStore();
+  const [clientId, setClientId] = useState(state.outlook.clientId);
+  const [busy, run] = useAction();
+  const save = () =>
+    run(async () => {
+      await api('/api/outlook-setup', { method: 'PUT', body: { clientId: clientId.trim(), tenant: state.outlook.tenant } });
+      await refreshState();
+      toast('App ID saved. Choose Outlook again to sign in.');
+      onSaved?.();
+    });
+  return html`<div class="stack">
+    <p class="muted">
+      Microsoft requires an app registration before any program can read Outlook mail. It is free and done once; the ID is saved in the app
+      folder, so people you share Pinger with skip this step.
+    </p>
+    <ol class="steps">
+      <li>
+        Open${' '}
+        <a href="https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noreferrer"
+          >Microsoft Entra → App registrations</a
+        >${' '} and choose <strong>New registration</strong>.
+      </li>
+      <li>Name: <strong>Pinger</strong>. Supported account types: <strong>Accounts in any organizational directory and personal Microsoft accounts</strong>.</li>
+      <li>
+        Redirect URI: platform <strong>Public client/native (mobile & desktop)</strong>, value <code>${state.outlook.redirectUri}</code>
+      </li>
+      <li>Choose <strong>Register</strong>, then copy the <strong>Application (client) ID</strong> into the field below.</li>
+    </ol>
+    <div class="row">
+      <input
+        type="text"
+        class="mono"
+        placeholder="00000000-0000-0000-0000-000000000000"
+        aria-label="Application (client) ID"
+        value=${clientId}
+        onInput=${(e) => setClientId(e.target.value)}
+      />
+      <button class="btn primary" disabled=${busy || !clientId.trim()} onClick=${save}>Save</button>
+    </div>
+    <p class="hint">Permissions requested: read mail, read calendar. Nothing is sent, deleted or changed. Work accounts may need IT approval.</p>
+  </div>`;
+}
+
+function ImapForm({ onConnected }) {
+  const [form, setForm] = useState({ email: '', password: '', host: '', port: 993, username: '' });
+  const [defaults, setDefaults] = useState(null);
+  const [advanced, setAdvanced] = useState(false);
+  const [busy, run] = useAction();
+  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+
+  const lookup = async () => {
+    if (!form.email.includes('@')) return;
+    try {
+      const d = await api(`/api/accounts/imap-defaults?email=${encodeURIComponent(form.email)}`);
+      setDefaults(d);
+      if (!d.known) setAdvanced(true);
+      setForm((f) => ({ ...f, host: f.host || d.host, port: f.port || d.port }));
+    } catch {
+      /* the server validates on submit */
+    }
+  };
+
+  const submit = (e) => {
+    e.preventDefault();
+    run(async () => {
+      await api('/api/accounts/imap', { method: 'POST', body: form });
+      await refreshState();
+      toast('Mailbox connected', { body: 'Reading recent mail.' });
+      onConnected?.();
+    });
+  };
+
+  const gmail = /@(gmail|googlemail)\.com$/i.test(form.email);
+  return html`<form class="stack" onSubmit=${submit}>
+    <div class="field">
+      <label for="imap-email">Email address</label>
+      <input id="imap-email" type="email" required autocomplete="username" value=${form.email} onInput=${set('email')} onBlur=${lookup} />
+    </div>
+    ${defaults?.microsoft && html`<div class="banner">Outlook.com, Hotmail and Microsoft 365 no longer accept app passwords. Use the Outlook option.</div>`}
+    <div class="field">
+      <label for="imap-pass">App password</label>
+      <input id="imap-pass" type="password" required autocomplete="off" value=${form.password} onInput=${set('password')} />
+      <span class="hint">
+        ${gmail
+          ? html`Gmail requires an app password: turn on 2-Step Verification, then create one at${' '}
+              <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">myaccount.google.com/apppasswords</a>.`
+          : 'Most providers require an app password created in the account security settings. The normal password usually fails.'}
+      </span>
+    </div>
+    ${advanced
+      ? html`<div class="row top">
+            <div class="field grow">
+              <label for="imap-host">IMAP server</label>
+              <input id="imap-host" type="text" class="mono" value=${form.host} onInput=${set('host')} placeholder="imap.example.com" />
+            </div>
+            <div class="field" style="width:90px">
+              <label for="imap-port">Port</label>
+              <input id="imap-port" type="number" value=${form.port} onInput=${set('port')} />
+            </div>
+          </div>
+          <div class="field">
+            <label for="imap-user">Username <span class="muted" style="font-weight:400">if different from the address</span></label>
+            <input id="imap-user" type="text" value=${form.username} onInput=${set('username')} />
+          </div>`
+      : html`<button type="button" class="btn ghost sm" style="align-self:flex-start" onClick=${() => setAdvanced(true)}>Server settings</button>`}
+    <div class="row wrap">
+      <button class="btn primary" disabled=${busy}>${busy ? html`<${Spinner} /> Checking` : 'Connect'}</button>
+      <span class="hint">Opened read-only. The password is stored on this computer only.</span>
+    </div>
+  </form>`;
+}
+
+export function ConnectEmail({ onConnected }) {
+  const { state } = useStore();
+  const [mode, setMode] = useState(null);
+  const [busy, run] = useAction();
+  const hasDemo = state.accounts.some((a) => a.kind === 'demo');
+
+  const demo = () =>
+    run(async () => {
+      await api('/api/accounts/demo', { method: 'POST' });
+      await refreshState();
+      toast('Sample mailbox added', { body: 'A sample meeting starts in two minutes.', ms: 9000 });
+      onConnected?.();
+    });
+
+  const outlook = () => {
+    if (state.outlook.clientId) location.href = '/auth/microsoft/start';
+    else setMode(mode === 'outlook' ? null : 'outlook');
+  };
+
+  return html`<div class="stack">
+    <div class="options">
+      <button class="option" onClick=${outlook}>
+        <strong>Outlook</strong>
+        <span class="small muted">Outlook.com, Hotmail, Microsoft 365. Mail and calendar.</span>
+      </button>
+      <button class="option" onClick=${() => setMode(mode === 'imap' ? null : 'imap')}>
+        <strong>Gmail and others</strong>
+        <span class="small muted">Gmail, iCloud, Yahoo, Fastmail, any IMAP mailbox.</span>
+      </button>
+      <button class="option" disabled=${busy || hasDemo} onClick=${demo}>
+        <strong>${busy ? 'Adding…' : hasDemo ? 'Sample data added' : 'Sample data'}</strong>
+        <span class="small muted">A made-up mailbox and calendar for trying Pinger.</span>
+      </button>
+    </div>
+    ${mode === 'outlook' && html`<div class="card pad"><${OutlookSetup} onSaved=${() => setMode(null)} /></div>`}
+    ${mode === 'imap' &&
+    html`<div class="card pad">
+      <${ImapForm}
+        onConnected=${() => {
+          setMode(null);
+          onConnected?.();
+        }}
+      />
+    </div>`}
+  </div>`;
+}
+
+/* ------------------------------------------------------- overview schedule */
+
+const pad = (n) => String(n).padStart(2, '0');
+
+function spreadTimes(count) {
+  if (count <= 0) return [];
+  if (count === 1) return ['09:00'];
+  const start = 9 * 60;
+  const end = 17 * 60;
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const m = Math.round((start + ((end - start) * i) / (count - 1)) / 15) * 15;
+    out.push(`${pad(Math.floor(m / 60))}:${pad(m % 60)}`);
+  }
+  return [...new Set(out)];
+}
+
+export function OverviewSchedule() {
+  const { state } = useStore();
+  const overview = state.settings.overview;
+  const [times, setTimes] = useState(overview.times);
+  useEffect(() => setTimes(overview.times), [overview.times.join(',')]);
+
+  const save = async (patch) => {
+    try {
+      await api('/api/settings', { method: 'PUT', body: { overview: patch } });
+      await refreshState();
+    } catch (err) {
+      oops(err);
+    }
+  };
+  const setCount = (n) => {
+    const count = Math.max(0, Math.min(8, n));
+    const next = spreadTimes(count);
+    setTimes(next);
+    save({ times: next, enabled: count > 0 });
+  };
+  const editTime = (i, value) => {
+    if (!value) return;
+    const next = times.map((t, j) => (j === i ? value : t));
+    setTimes(next);
+    save({ times: next });
+  };
+
+  const count = overview.enabled ? times.length : 0;
+  return html`<div class="stack">
+    <div class="row wrap">
+      <div class="stepper" role="group" aria-label="Overviews per day">
+        <button aria-label="Fewer overviews" onClick=${() => setCount(count - 1)}>−</button>
+        <span class="value" aria-live="polite">${count}</span>
+        <button aria-label="More overviews" onClick=${() => setCount(count + 1)}>+</button>
+      </div>
+      <span>${count === 0 ? 'Scheduled overviews off' : count === 1 ? 'overview per day' : 'overviews per day'}</span>
+    </div>
+    ${count > 0 &&
+    html`<div class="times">
+        ${times.map(
+          (t, i) => html`<input type="time" aria-label=${`Overview ${i + 1} time`} value=${t} onChange=${(e) => editTime(i, e.target.value)} />`,
+        )}
+      </div>
+      <label class="checkline">
+        <input type="checkbox" checked=${overview.weekdaysOnly} onChange=${(e) => save({ weekdaysOnly: e.target.checked })} />
+        Weekdays only
+      </label>`}
+  </div>`;
+}
+
+/* ------------------------------------------------------------------ AI key */
+
+export function AiKeyForm() {
+  const { state } = useStore();
+  const [key, setKey] = useState('');
+  const [busy, run] = useAction();
+  const { apiKeySet, apiKeyHint, model } = state.settings.ai;
+
+  const save = (apiKey) =>
+    run(async () => {
+      await api('/api/settings', { method: 'PUT', body: { ai: { apiKey } } });
+      await refreshState();
+      setKey('');
+      toast(apiKey ? 'AI key saved' : 'AI key removed');
+    });
+
+  return html`<div class="stack">
+    ${apiKeySet
+      ? html`<div class="row wrap">
+          <span class="chip good">AI on</span>
+          <code>${apiKeyHint}</code>
+          <button class="btn sm danger" disabled=${busy} onClick=${() => save('')}>Remove key</button>
+        </div>`
+      : html`<div class="row">
+          <input
+            type="password"
+            class="mono"
+            autocomplete="off"
+            placeholder="sk-ant-…"
+            aria-label="Claude API key"
+            value=${key}
+            onInput=${(e) => setKey(e.target.value)}
+          />
+          <button class="btn primary" disabled=${busy || key.trim().length < 20} onClick=${() => save(key.trim())}>Save key</button>
+        </div>`}
+    ${state.ai.enabled && !apiKeySet && html`<p class="hint">Using the key in the <code>ANTHROPIC_API_KEY</code> environment variable.</p>`}
+    <div class="field">
+      <label for="ai-model">Model</label>
+      <select
+        id="ai-model"
+        class="inline"
+        value=${model}
+        onChange=${(e) => run(async () => {
+          await api('/api/settings', { method: 'PUT', body: { ai: { model: e.target.value } } });
+          await refreshState();
+        })}
+      >
+        ${state.models.map((m) => html`<option value=${m.id}>${m.label} — ${m.note}</option>`)}
+      </select>
+    </div>
+    <p class="hint">
+      Keys are issued at <a href="https://platform.claude.com" target="_blank" rel="noreferrer">platform.claude.com</a>. With a key, the text of
+      emails that may need a reply and of your meeting transcripts is sent to Anthropic's Claude API, billed to you by Anthropic. Without a
+      key, built-in rules are used and nothing leaves this computer.
+    </p>
+  </div>`;
+}
+
+/* ----------------------------------------------------------- notifications */
+
+export function notificationPermission() {
+  return 'Notification' in window ? Notification.permission : 'unsupported';
+}
+
+export function NotificationSetup({ onChange }) {
+  const [permission, setPermission] = useState(notificationPermission());
+  const [busy, run] = useAction();
+
+  const enable = async () => {
+    const result = await Notification.requestPermission();
+    setPermission(result);
+    onChange?.(result);
+    window.dispatchEvent(new Event('pinger:notify-permission'));
+    if (result === 'granted') toast('Notifications on');
+  };
+  const test = () => run(() => api('/api/pings/test', { method: 'POST' }));
+
+  return html`<div class="stack">
+    ${permission === 'granted' && html`<div class="row wrap"><span class="chip good">Browser notifications on</span></div>`}
+    ${permission === 'default' &&
+    html`<div class="row wrap">
+      <button class="btn primary" onClick=${enable}><${Icon} name="bell" /> Turn on notifications</button>
+      <span class="hint">The browser asks for permission.</span>
+    </div>`}
+    ${permission === 'denied' &&
+    html`<div class="banner">
+      Notifications are blocked for this page. Allow them from the icon left of the address bar. Until then, pings use the system notification
+      centre only while this tab is closed.
+    </div>`}
+    ${permission === 'unsupported' && html`<div class="banner">This browser does not support notifications.</div>`}
+    <div class="row wrap">
+      <button class="btn sm" disabled=${busy} onClick=${test}>Send test ping</button>
+      <span class="hint">Pings show in this window, and as desktop notifications when another window has focus.</span>
+    </div>
+  </div>`;
+}
