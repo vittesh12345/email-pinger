@@ -52,7 +52,11 @@ test('static assets and the app shell are served with a content security policy'
   assert.match(await page.text(), /<title>Pinger<\/title>/);
   const csp = page.headers.get('content-security-policy');
   assert.match(csp, /default-src 'self'/);
-  assert.match(csp, /frame-ancestors chrome-extension:\/\/[a-p]{32};/, 'only the bundled side-panel extension may frame Pinger');
+  assert.match(
+    csp,
+    /frame-ancestors chrome-extension:\/\/([a-p]{32}) extension:\/\/\1;/,
+    'only the bundled side-panel extension (Chrome or Edge form) may frame Pinger',
+  );
   for (const asset of ['/app.js', '/styles.css', '/vendor/preact.mjs', '/vendor/preact-hooks.mjs', '/vendor/htm.mjs', '/manifest.webmanifest', '/fonts/inter-latin-wght-normal.woff2', '/icon-192.png']) {
     assert.equal((await fetch(base + asset)).status, 200, asset);
   }

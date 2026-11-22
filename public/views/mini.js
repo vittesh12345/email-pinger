@@ -4,6 +4,7 @@
 import {
   api, dueLabel, fmtTime, html, Icon, openInMain, personName, Spinner, timeAgo, Toasts, update, useAction, useData, useStore, waitingFor,
 } from '../lib.js';
+import { OutlookWebStatus } from './parts.js';
 
 function ThreadRow({ t, waiting }) {
   const [busy, run] = useAction();
@@ -58,6 +59,7 @@ export function MiniPanel() {
       <button class="btn ghost sm" title="Open the full window" onClick=${() => openInMain('/')}>Open <${Icon} name="external" /></button>
     </div>
 
+    <${OutlookWebStatus} compact />
     ${prompt &&
     html`<div class="mini-alert" role="alert">
       <div class="title">${prompt.title || 'Your meeting'} is starting</div>

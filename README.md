@@ -26,6 +26,23 @@ To look around before connecting anything, choose **Sample data** in setup. It a
 
 ## Connect your email
 
+### Outlook in the browser (no Microsoft setup, Mac or PC)
+
+If you use Outlook on the web (outlook.office.com or outlook.live.com), Pinger can read it through its browser extension, in Chrome or Edge:
+
+1. Install the extension (see **Browser side panel** below). If it is already installed, press its reload button so it picks up Outlook reading.
+2. In Pinger, choose **Outlook in the browser** and enter your mailbox address.
+3. Open Outlook on the web in that browser.
+
+How it works, and its limits:
+
+- It reads what Outlook has drawn on the page: the message rows that are loaded, and the full text of conversations you open. It sends that only to Pinger on your computer.
+- It never opens messages itself, because that would mark them as read. To read further back than what is on screen, use **Scan inbox** (Settings or the mini window/side panel). It scrolls Outlook's message list back through your lookback period, then puts your scroll position back.
+- Open **Sent Items** now and then so Pinger sees who you are waiting on.
+- It works out who sent what from the page text, so it depends on how Microsoft builds Outlook's page. If Microsoft changes it, reading can break. **Diagnostic info** produces an outline of the page with no email text, names or addresses, for fixing it.
+- It doesn't read the Outlook calendar. For the meeting pop-up, add a calendar link under Settings → Calendar if your account allows publishing one.
+- It is tested against a stand-in page built the way Outlook's page is expected to be, not yet against Outlook itself.
+
 ### Outlook app on a Windows PC (no setup)
 
 If the classic Outlook desktop app is installed and signed in on your Windows PC, choose **Outlook app on this PC**. Pinger reads your mailbox and calendar through that app, on your computer: no Microsoft registration and no approval request. It only reads; it never changes, moves or sends anything.
@@ -104,7 +121,7 @@ Your personal data is **not** in this folder — it lives in your user profile (
 - It looks at the last 14 days of mail by default.
 - Outlook and Gmail/IMAP connections are covered by automated tests against simulated servers; live transcription depends on your browser.
 - It is not an Outlook add-in: it does not appear inside the Outlook desktop app. Use the side panel (Outlook on the web) or the mini window (any mail app) to keep it next to your mail.
-- The side panel and mini window change where Pinger is shown. Reading Outlook mail still needs the one-time Microsoft registration above.
+- The side panel and mini window change where Pinger is shown. Reading Outlook mail needs one of: the Outlook app on Windows, Outlook in the browser (via the extension), or the Microsoft sign-in.
 
 ## Options
 
@@ -135,5 +152,5 @@ npm start
 - `src/ai/` — the Claude API client and prompts.
 - `src/scheduler.js` — the loop that syncs mail and fires pings.
 - `public/` — the interface (Preact, no build step).
-- `extension/` — the Chrome/Edge side-panel extension (a frame around the compact view).
+- `extension/` — the Chrome/Edge extension: the side panel (a frame around the compact view) and the Outlook-on-the-web reader (`outlook-reader.js`, which only collects page text; `src/core/owa-parse.js` interprets it).
 - `test/` — `node --test` suites; no network access needed.

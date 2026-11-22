@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
 import { api, go, html, Icon, oops, refreshState, timeAgo, toast, useAction, useStore } from '../lib.js';
 import { popOut } from '../popout.js';
-import { AiKeyForm, ConnectEmail, NotificationSetup, OverviewSchedule } from './parts.js';
+import { AiKeyForm, ConnectEmail, NotificationSetup, OutlookWebStatus, OverviewSchedule } from './parts.js';
 
-const KIND_LABEL = { outlook: 'Outlook', imap: 'IMAP', demo: 'Sample' };
+const KIND_LABEL = { outlook: 'Outlook', outlook_desktop: 'Outlook app', outlook_web: 'Outlook web', imap: 'IMAP', demo: 'Sample' };
 
 function Section({ id, title, sub, children }) {
   return html`<section class="card section" id=${id}>
@@ -77,13 +77,16 @@ function Accounts() {
       return html`<div class="account">
         <span class="chip plain">${KIND_LABEL[a.kind] || a.kind}</span>
         <div class="grow truncate">${a.email}</div>
-        ${a.status === 'ok'
+        ${a.kind === 'outlook_web'
+          ? html`<span class="small faint">${state.outlookWeb?.live ? 'reading Outlook' : 'Outlook not open'}</span>`
+          : a.status === 'ok'
           ? html`<span class="small faint">${age ? html`checked <span class="mono">${age}</span>${age === 'just now' ? '' : ' ago'}` : 'reading mail'}</span>`
           : html`<span class="small" style="color:var(--danger)">${a.statusDetail || 'Account error'}</span>`}
         ${a.kind === 'outlook' && a.status === 'needs_auth' && html`<a class="btn sm primary" href="/auth/microsoft/start">Sign in again</a>`}
         <button class="btn sm danger" disabled=${busy} onClick=${() => remove(a)}>Disconnect</button>
       </div>`;
     })}
+    <${OutlookWebStatus} />
     <div class="stack tight">
       <span class="label">${state.accounts.length ? 'Add account' : 'Connect email'}</span>
       <${ConnectEmail} />

@@ -1,7 +1,7 @@
 // Setup pieces shared by the first-run wizard and the Settings page.
 
 import { useEffect, useState } from 'preact/hooks';
-import { api, html, Icon, oops, refreshState, Spinner, toast, useAction, useStore } from '../lib.js';
+import { api, copyText, html, Icon, Modal, oops, refreshState, Spinner, toast, useAction, useStore, waitingFor } from '../lib.js';
 
 /* ---------------------------------------------------------- connect email */
 
@@ -118,6 +118,118 @@ function ImapForm({ onConnected }) {
   </form>`;
 }
 
+function OutlookWebSetup({ onConnected }) {
+  const { state } = useStore();
+  const [email, setEmail] = useState(state.settings.profile.emails[0] || '');
+  const [busy, run] = useAction();
+  const connect = (e) => {
+    e.preventDefault();
+    run(async () => {
+      await api('/api/accounts/outlook-web', { method: 'POST', body: { email } });
+      await refreshState();
+      toast('Outlook in the browser connected', { body: 'Open Outlook on the web in this browser. Pinger reads it as you use it.' });
+      onConnected?.();
+    });
+  };
+  return html`<form class="stack" onSubmit=${connect}>
+    <p class="muted">
+      Pinger's browser extension reads Outlook on the web as you use it and passes what is on screen to Pinger on this computer. No
+      Microsoft registration, and nothing goes anywhere else.
+    </p>
+    <ol class="steps">
+      <li>
+        Install the extension in Chrome or Edge: open <code>chrome://extensions</code> (Edge: <code>edge://extensions</code>), turn on
+        <strong>Developer mode</strong>, choose <strong>Load unpacked</strong>, and select <code>${state.extensionDir}</code>. Already
+        installed? Press its reload button so it picks up Outlook reading.
+      </li>
+      <li>Enter the address of the mailbox you use in Outlook, below.</li>
+      <li>Open Outlook on the web (outlook.office.com or outlook.live.com) in that browser and look at your Inbox.</li>
+    </ol>
+    <div class="row">
+      <input type="email" required placeholder="you@company.com" aria-label="Mailbox address" value=${email} onInput=${(e) => setEmail(e.target.value)} />
+      <button class="btn primary" disabled=${busy || !email.includes('@')}>Connect</button>
+    </div>
+    <p class="hint">
+      Pinger reads the messages Outlook has loaded, and the full text of conversations you open. It never opens messages itself, because
+      that would mark them as read. Use <strong>Scan inbox</strong> to read further back.
+    </p>
+  </form>`;
+}
+
+const FOLDER_NAME = { inbox: 'Inbox', sent: 'Sent Items', other: 'another folder', skip: 'a folder Pinger skips' };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Live status of Outlook-in-the-browser reading, with Scan and diagnostics. */
+export function OutlookWebStatus({ compact = false }) {
+  const { state } = useStore();
+  const ow = state.outlookWeb;
+  const [busy, run] = useAction();
+  const [diag, setDiag] = useState(null);
+  if (!ow?.connected) return null;
+
+  const scanning = ow.scan.state !== 'idle';
+  const scan = () =>
+    run(async () => {
+      await api('/api/outlook-web/scan', { method: 'POST' });
+      await refreshState();
+    });
+  const collect = () =>
+    run(async () => {
+      await api('/api/outlook-web/diagnose', { method: 'POST' });
+      for (let i = 0; i < 25; i++) {
+        await sleep(1000);
+        const d = await api('/api/outlook-web/diagnostics');
+        if (d.structure) {
+          setDiag(JSON.stringify(d, null, 1));
+          return;
+        }
+      }
+      throw new Error('Outlook did not answer. Keep Outlook on the web open in this browser, with the Pinger extension installed.');
+    });
+
+  let text;
+  if (scanning) text = ow.scan.state === 'requested' ? 'Starting scan…' : `Scanning the message list… (${ow.scan.pages} screens)`;
+  else if (ow.live) text = `Reading Outlook · ${FOLDER_NAME[ow.folder] || 'Outlook'} · ${ow.rows} messages on screen${ow.pane ? `, ${ow.pane} open` : ''}`;
+  else if (ow.lastSeenAt) text = `Outlook last seen ${waitingFor(ow.lastSeenAt)}. Open Outlook on the web in this browser.`;
+  else text = 'Waiting for Outlook. Open Outlook on the web in Chrome or Edge, with the Pinger extension installed.';
+
+  const scanButton = html`<button class="btn sm" disabled=${busy || scanning || !ow.live} title=${ow.live ? 'Scroll back through the message list to read older mail' : 'Open Outlook first'} onClick=${scan}>
+    ${scanning ? html`<${Spinner} />` : null} Scan inbox
+  </button>`;
+
+  if (compact) {
+    return html`<div class="row" style="padding:5px 10px;border-bottom:1px solid var(--border);font-size:12px">
+      <span class=${`dot ${ow.live ? 'high' : ''}`} style=${ow.live ? 'background:var(--ok)' : ''}></span>
+      <span class="grow truncate muted">${text}</span>
+      ${scanButton}
+    </div>`;
+  }
+  return html`<div class="stack tight">
+    <div class="row wrap">
+      <span class=${`dot`} style=${ow.live ? 'background:var(--ok)' : ''}></span>
+      <span class="grow">${text}</span>
+      ${scanButton}
+      <button class="btn sm" disabled=${busy} title="Page structure and counts only — no email text, names or addresses" onClick=${collect}>Diagnostic info</button>
+    </div>
+    ${ow.scan.error && html`<div class="banner error">${ow.scan.error}</div>`}
+    ${ow.scan.finishedAt && !scanning && !ow.scan.error && html`<span class="hint">Last scan finished ${waitingFor(ow.scan.finishedAt)}.</span>`}
+    ${diag &&
+    html`<${Modal} wide title="Diagnostic info" onClose=${() => setDiag(null)}>
+      <div class="modal-body">
+        <p class="muted">
+          How Outlook's page is built, and how much of it Pinger could read. It contains no email text, names or addresses. Send it to whoever
+          maintains your copy of Pinger if Outlook reading stops working.
+        </p>
+        <textarea readonly style="min-height:260px;font-family:var(--mono);font-size:11.5px" value=${diag}></textarea>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" onClick=${() => setDiag(null)}>Close</button>
+        <button class="btn primary" onClick=${() => copyText(diag)}><${Icon} name="copy" /> Copy</button>
+      </div>
+    <//>`}
+  </div>`;
+}
+
 export function ConnectEmail({ onConnected }) {
   const { state } = useStore();
   const [mode, setMode] = useState(null);
@@ -156,6 +268,10 @@ export function ConnectEmail({ onConnected }) {
         <strong>Outlook${state.outlookDesktop ? ' (sign in)' : ''}</strong>
         <span class="small muted">Outlook.com, Hotmail, Microsoft 365, via Microsoft sign-in. Mail and calendar.</span>
       </button>
+      <button class="option" disabled=${!!state.outlookWeb?.connected} onClick=${() => setMode(mode === 'owa' ? null : 'owa')}>
+        <strong>${state.outlookWeb?.connected ? 'Outlook in the browser added' : 'Outlook in the browser'}</strong>
+        <span class="small muted">Reads Outlook on the web as you use it, through Pinger's browser extension. No Microsoft setup.</span>
+      </button>
       <button class="option" onClick=${() => setMode(mode === 'imap' ? null : 'imap')}>
         <strong>Gmail and others</strong>
         <span class="small muted">Gmail, iCloud, Yahoo, Fastmail, any IMAP mailbox.</span>
@@ -166,6 +282,15 @@ export function ConnectEmail({ onConnected }) {
       </button>
     </div>
     ${mode === 'outlook' && html`<div class="card pad"><${OutlookSetup} onSaved=${() => setMode(null)} /></div>`}
+    ${mode === 'owa' &&
+    html`<div class="card pad">
+      <${OutlookWebSetup}
+        onConnected=${() => {
+          setMode(null);
+          onConnected?.();
+        }}
+      />
+    </div>`}
     ${mode === 'imap' &&
     html`<div class="card pad">
       <${ImapForm}

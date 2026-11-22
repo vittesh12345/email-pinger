@@ -23,6 +23,7 @@ import {
 import { buildDigest, collectOverview, digestHistory, latestDigest, ruleBrief } from './core/overview.js';
 import { getThread, listThreads, publicThread, threadForAi } from './core/sync.js';
 import { parseTranscriptFile } from './core/transcripts.js';
+import { diagnostics, ingest, outlookWebAccount, outlookWebStatus, requestDiagnostics, requestScan, resetOutlookWeb } from './core/outlook-web.js';
 import { all, run, tx } from './db.js';
 import { addClient, changed, runtime } from './events.js';
 import { ping, recentPings } from './pings.js';
@@ -47,6 +48,9 @@ const intParam = (value) => {
 /** Run work in the background; the UI hears about the result over the live channel. */
 const background = (promise) => promise.catch((err) => console.error('[pinger]', err.message));
 
+// The bundled extension, as Chrome and as Edge name extension origins.
+const EXTENSION_ORIGINS = new Set([`chrome-extension://${EXTENSION_ID}`, `extension://${EXTENSION_ID}`]);
+
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
@@ -59,7 +63,10 @@ export function createApp() {
     if (!hosts.has(req.headers.host || '')) return res.status(403).type('text').send('Forbidden');
     if (!SAFE_METHODS.has(req.method)) {
       const origin = req.headers.origin;
-      if (origin && ![...hosts].some((h) => origin === `http://${h}`)) return res.status(403).type('text').send('Forbidden');
+      const fromExtension = EXTENSION_ORIGINS.has(origin) && req.path.startsWith('/api/outlook-web/');
+      if (origin && !fromExtension && ![...hosts].some((h) => origin === `http://${h}`)) {
+        return res.status(403).type('text').send('Forbidden');
+      }
       // Requiring a JSON content type forces a CORS preflight for any cross-site caller, which we never answer.
       if (!String(req.headers['content-type'] || '').startsWith('application/json')) {
         return res.status(415).json({ error: 'Send JSON' });
@@ -70,6 +77,7 @@ export function createApp() {
     next();
   });
 
+  app.use('/api/outlook-web/snapshot', express.json({ limit: '4mb' }));
   app.use('/api/meetings/import', express.json({ limit: '18mb' }));
   app.use('/api/meetings', express.json({ limit: '6mb' }));
   app.use(express.json({ limit: '1mb' }));
@@ -90,7 +98,7 @@ export function createApp() {
         res.set('Cache-Control', 'no-cache');
         res.set(
           'Content-Security-Policy',
-          `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors chrome-extension://${EXTENSION_ID}; base-uri 'none'; form-action 'none'`,
+          `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors chrome-extension://${EXTENSION_ID} extension://${EXTENSION_ID}; base-uri 'none'; form-action 'none'`,
         );
       },
     }),
@@ -121,6 +129,7 @@ export function createApp() {
       extensionDir: EXTENSION_DIR,
       platform: process.platform,
       outlookDesktop: outlookDesktopAvailable(),
+      outlookWeb: outlookWebStatus(),
       demoEmail: DEMO_EMAIL,
     };
   }
@@ -187,6 +196,31 @@ export function createApp() {
     res.json({ account: publicAccount(account) });
   });
 
+  app.post('/api/accounts/outlook-web', async (req, res) => {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, 'Enter the email address of the mailbox you use in Outlook.');
+    if (outlookWebAccount()) throw new HttpError(400, 'Outlook in the browser is already connected. Disconnect it first to change the address.');
+    const account = createAccount({ kind: 'outlook_web', email, name: getSettings().profile.name || null, config: {} });
+    resetOutlookWeb();
+    res.json({ account: publicAccount(account) });
+  });
+
+  // From the browser extension: what Outlook on the web shows right now.
+  app.post('/api/outlook-web/snapshot', (req, res) => {
+    const origin = req.headers.origin;
+    if (origin && !EXTENSION_ORIGINS.has(origin)) throw new HttpError(403, 'Forbidden');
+    res.json(ingest(req.body || {}));
+  });
+
+  app.post('/api/outlook-web/scan', (req, res) => res.json({ scan: requestScan() }));
+
+  app.post('/api/outlook-web/diagnose', (req, res) => {
+    requestDiagnostics();
+    res.json({ ok: true });
+  });
+
+  app.get('/api/outlook-web/diagnostics', (req, res) => res.json(diagnostics()));
+
   app.get('/api/accounts/imap-defaults', (req, res) => res.json(imapDefaults(String(req.query.email || ''))));
 
   app.post('/api/accounts/imap', async (req, res) => {
@@ -211,7 +245,9 @@ export function createApp() {
   });
 
   app.delete('/api/accounts/:id', (req, res) => {
-    deleteAccount(intParam(req.params.id));
+    const id = intParam(req.params.id);
+    if (getAccount(id)?.kind === 'outlook_web') resetOutlookWeb();
+    deleteAccount(id);
     changed('threads', 'accounts', 'events', 'status');
     res.json({ ok: true });
   });
@@ -498,11 +534,12 @@ export function createApp() {
   app.post('/api/data/wipe', (req, res) => {
     if (req.body?.confirm !== 'DELETE') throw new HttpError(400, 'Confirmation required');
     tx(() => {
-      for (const table of ['followups', 'meetings_fts', 'meetings', 'calendar_events', 'threads', 'messages', 'accounts', 'digests', 'pings', 'settings']) {
+      for (const table of ['followups', 'meetings_fts', 'meetings', 'calendar_events', 'threads', 'messages', 'web_items', 'accounts', 'digests', 'pings', 'settings']) {
         run(`DELETE FROM ${table}`);
       }
     });
     Object.assign(runtime, { lastSyncError: null, aiError: null, calendarError: null });
+    resetOutlookWeb();
     changed('threads', 'accounts', 'meetings', 'followups', 'events', 'digest', 'status');
     res.json({ ok: true });
   });

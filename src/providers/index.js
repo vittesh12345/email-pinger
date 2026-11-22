@@ -4,6 +4,7 @@ import { createDemoProvider } from './demo.js';
 import { createImapProvider } from './imap.js';
 import { createOutlookDesktopProvider } from './outlook-desktop.js';
 import { createOutlookProvider } from './outlook.js';
+import { createOutlookWebProvider } from './outlook-web.js';
 
 /** @returns {{fetchMessages: Function, fetchEvents?: Function}} */
 export function createProvider(account) {
@@ -12,6 +13,8 @@ export function createProvider(account) {
       return createOutlookProvider(account, { saveConfig: (cfg) => saveAccountConfig(account.id, cfg) });
     case 'outlook_desktop':
       return createOutlookDesktopProvider(account);
+    case 'outlook_web':
+      return createOutlookWebProvider(account);
     case 'imap':
       return createImapProvider(account);
     case 'demo':

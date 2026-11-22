@@ -1,6 +1,6 @@
 // Pull mail from a provider into the local store, then work out what each thread needs.
 
-import { getAccount, ownAddresses, setAccountStatus } from '../accounts.js';
+import { getAccount, ownAddresses, ownNames, setAccountStatus } from '../accounts.js';
 import { aiEnabled } from '../ai/client.js';
 import { triageThreads } from '../ai/tasks.js';
 import { all, get, run, tx } from '../db.js';
@@ -49,7 +49,7 @@ async function doSync(accountId, { now = new Date(), provider } = {}) {
 
   const me = ownAddresses(account, settings);
   storeMessages(accountId, result, me, since, now);
-  rebuildThreads(accountId, me);
+  rebuildThreads(accountId, me, ownNames(account, settings));
   run("UPDATE accounts SET last_sync_at = ?, status = 'ok', status_detail = NULL WHERE id = ?", nowIso(now), accountId);
 
   let analysed = 0;
@@ -64,10 +64,7 @@ async function doSync(accountId, { now = new Date(), provider } = {}) {
 
   // Don't fire individual pings for mail that was already urgent or overdue when the account was added —
   // the first overview covers it. Threads that become overdue later still get their nudge.
-  if (firstSync) {
-    const { urgent, nudges } = pingableThreads(now, settings);
-    for (const t of [...urgent, ...nudges]) if (t.account_id === accountId) markPinged(t.id);
-  }
+  if (firstSync) suppressPendingPings(accountId, now, settings);
 
   return { fetched: result.messages.length, complete: result.complete, analysed };
 }
@@ -104,8 +101,9 @@ function storeMessages(accountId, result, me, since, now) {
         direction,
         m.from?.name || '',
         lower(m.from?.email),
-        JSON.stringify(m.to || []),
-        JSON.stringify(m.cc || []),
+        // null (recipients unknown) is kept as null, so triage can tell it apart from "nobody".
+        JSON.stringify(m.to === null ? null : m.to || []),
+        JSON.stringify(m.cc === null ? null : m.cc || []),
         m.subject || '',
         hasBody ? String(m.body).slice(0, BODY_LIMIT) : null,
         m.sentAt,
@@ -143,7 +141,7 @@ const shapeMessage = (row) => ({
   importance: row.importance,
 });
 
-export function rebuildThreads(accountId, me) {
+export function rebuildThreads(accountId, me, meNames = new Set()) {
   const groups = new Map();
   for (const row of all('SELECT * FROM messages WHERE account_id = ? ORDER BY sent_at, id', accountId)) {
     if (!groups.has(row.thread_key)) groups.set(row.thread_key, []);
@@ -154,7 +152,7 @@ export function rebuildThreads(accountId, me) {
   tx(() => {
     for (const [key, messages] of groups) {
       const last = messages.at(-1);
-      const verdict = evaluateThread(messages, { me });
+      const verdict = evaluateThread(messages, { me, meNames });
       const prev = existing.get(key);
       const common = [
         displaySubject(messages[0].subject || last.subject),
@@ -212,7 +210,7 @@ export function threadForAi(thread, limit = 3) {
   ).reverse();
   return rows.map((row, i) => {
     const isLast = i === rows.length - 1;
-    const names = (json) => parseJson(json, []).map((r) => (r.name ? `${r.name} <${r.email}>` : r.email));
+    const names = (json) => (parseJson(json, []) || []).map((r) => (r.name && r.email ? `${r.name} <${r.email}>` : r.name || r.email));
     return {
       sender: row.direction === 'out' ? 'user' : 'them',
       from: row.from_name ? `${row.from_name} <${row.from_email}>` : row.from_email,
@@ -285,9 +283,19 @@ export function pingableThreads(now = new Date(), settings = getSettings()) {
   const fresh = "(t.pinged_message_id IS NULL OR t.pinged_message_id != t.last_message_id) AND t.user_status = 'open'";
   const cutoff = new Date(now.getTime() - settings.followups.awaitingDays * DAY).toISOString();
   return {
-    urgent: all(`SELECT t.* FROM threads t WHERE t.state = 'needs_reply' AND t.priority = 'high' AND ${fresh} ORDER BY t.last_at DESC`),
+    // An urgent ping is for mail that just arrived; anything older is the overview's job.
+    urgent: all(
+      `SELECT t.* FROM threads t WHERE t.state = 'needs_reply' AND t.priority = 'high' AND t.last_at >= ? AND ${fresh} ORDER BY t.last_at DESC`,
+      new Date(now.getTime() - 2 * DAY).toISOString(),
+    ),
     nudges: all(`SELECT t.* FROM threads t WHERE t.state = 'awaiting_reply' AND t.waiting_since <= ? AND ${fresh} ORDER BY t.waiting_since`, cutoff),
   };
+}
+
+/** Mark everything currently ping-worthy for an account as already pinged (it was there before). */
+export function suppressPendingPings(accountId, now = new Date(), settings = getSettings()) {
+  const { urgent, nudges } = pingableThreads(now, settings);
+  for (const t of [...urgent, ...nudges]) if (t.account_id === accountId) markPinged(t.id);
 }
 
 export function markPinged(threadId) {

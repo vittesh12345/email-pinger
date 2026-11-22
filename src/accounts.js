@@ -1,4 +1,5 @@
 import { all, get, run, tx } from './db.js';
+import { normalizeName } from './core/triage.js';
 import { lower, nowIso, parseJson } from './util.js';
 
 const shape = (row) => (row ? { ...row, config: parseJson(row.config, {}) } : null);
@@ -55,10 +56,16 @@ export function publicAccount(a) {
     statusDetail: a.status_detail,
     lastSyncAt: a.last_sync_at,
     hasCalendar: a.kind === 'outlook' || a.kind === 'outlook_desktop' || a.kind === 'demo',
+    config: a.kind === 'outlook_web' ? { firstSeenAt: a.config?.firstSeenAt || null } : undefined,
   };
 }
 
 /** Every address that counts as "me" for this account. */
 export function ownAddresses(account, settings) {
   return new Set([account.email, ...(account.config?.aliases || []), ...(settings.profile.emails || [])].map(lower).filter(Boolean));
+}
+
+/** Display names that count as "me", for sources that show names without addresses. */
+export function ownNames(account, settings) {
+  return new Set([account.name, settings.profile.name].map(normalizeName).filter(Boolean));
 }

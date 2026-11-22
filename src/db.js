@@ -144,6 +144,16 @@ const MIGRATIONS = [
     data TEXT
   );
   `,
+  `
+  -- What the browser extension has read from Outlook on the web, as normalized messages.
+  CREATE TABLE web_items (
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    provider_id TEXT NOT NULL,
+    data TEXT NOT NULL,
+    seen_at TEXT NOT NULL,
+    PRIMARY KEY (account_id, provider_id)
+  );
+  `,
 ];
 
 export function initDb(file) {

@@ -73,6 +73,15 @@ export function automatedLevel(msg) {
   return 0;
 }
 
+/** A display name in a comparable form: case, spacing and quotes ignored. */
+export const normalizeName = (s) =>
+  String(s ?? '')
+    .normalize('NFKC')
+    .replace(/["“”‘’]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
 export function isAutomatedAddress(email) {
   const local = lower(email).split('@')[0] || '';
   return STRONG_LOCAL.test(local);
@@ -178,6 +187,8 @@ export function evaluateThread(messages, ctx) {
   const last = messages.at(-1);
   if (!last) return { ...NONE };
   const isMe = (e) => ctx.me.has(lower(e));
+  // Some sources (Outlook on the web) show a recipient's name but not their address.
+  const isMeRecipient = (r) => isMe(r.email) || (!r.email && !!r.name && !!ctx.meNames?.has(normalizeName(r.name)));
   const base = { ...NONE, waitingSince: last.sentAt };
   const text = stripQuoted(last.body);
   const sig = askSignals(text);
@@ -186,14 +197,18 @@ export function evaluateThread(messages, ctx) {
     const counterpart = { name: last.from?.name || '', email: lower(last.from?.email) };
     if (last.automated >= 2 || last.isMeeting) return { ...base, counterpart };
 
-    const to = (last.to || []).map((r) => lower(r.email));
-    const cc = (last.cc || []).map((r) => lower(r.email));
-    const inTo = to.some(isMe);
-    const inCc = cc.some(isMe);
+    // null means the source could not see who the message was addressed to.
+    const recipientsKnown = Array.isArray(last.to);
+    const to = last.to || [];
+    const cc = last.cc || [];
+    const inTo = to.some(isMeRecipient);
+    const inCc = cc.some(isMeRecipient);
     const reasons = [];
     let score = 35;
 
-    if (inTo && to.length === 1 && cc.length === 0) {
+    if (!recipientsKnown) {
+      // No recipient information: neither reward nor penalise.
+    } else if (inTo && to.length === 1 && cc.length === 0) {
       score += 15;
       reasons.push('sent only to you');
     } else if (inTo) {
@@ -240,7 +255,7 @@ export function evaluateThread(messages, ctx) {
   }
 
   // The user wrote last: are they waiting on someone?
-  const recipients = [...(last.to || []), ...(last.cc || [])].filter((r) => r.email && !isMe(r.email));
+  const recipients = [...(last.to || []), ...(last.cc || [])].filter((r) => (r.email || r.name) && !isMeRecipient(r));
   const people = recipients.filter((r) => !isAutomatedAddress(r.email));
   const first = people[0] || recipients[0];
   const counterpart = { name: first?.name || '', email: lower(first?.email) };

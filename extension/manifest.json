@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Pinger side panel",
-  "version": "0.1.0",
-  "description": "Shows Pinger in the browser side panel, next to your mail.",
+  "version": "0.2.0",
+  "description": "Shows Pinger in the browser side panel, and reads Outlook on the web for the Pinger app on this computer.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt2vwSE6xd1UB+SuX2uowdYIkbHyHI/n3grMoQLl+ozDfIfVwMatUNNCZFVSM4KEikbtnDlzshM2QTVWVhFdco9e+LusH8ICije++nyHr/XwJxpP7G/s6VJxMSzawMHq4Y8rCvZEFM+x+eKs0nz87x7zPwpEDqOkbVTH5fLhfH3WcmXO4Ksbwhdn+ehV1rronfylkkxrmoijgWSC1bQbC76C7XKV4vGLK4O6DUJgLUWTBKLrFfhvhnL30TCecgol/5EO/01plPuq0J9fmU0s6l8w/5YJJ0uc8m9GukA5nX7oblkEwjdFIoe9z2X6PHWZlNvSDZ1hD7G6NSO46kPcYAQIDAQAB",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -24,6 +24,20 @@
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://outlook.office.com/*",
+        "https://outlook.office365.com/*",
+        "https://outlook.live.com/*",
+        "https://outlook.cloud.microsoft/*"
+      ],
+      "js": [
+        "outlook-reader.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
   "icons": {
     "16": "icon-16.png",
     "32": "icon-32.png",
