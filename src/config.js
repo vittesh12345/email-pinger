@@ -8,6 +8,11 @@ export const VERSION = JSON.parse(fs.readFileSync(path.join(APP_ROOT, 'package.j
 export const PORT = Number(process.env.PINGER_PORT || 4317);
 export const APP_NAME = 'Pinger';
 
+// The side-panel browser extension in ./extension. Its manifest carries a fixed key, so it has
+// this ID on every computer and is the only extension allowed to show Pinger in a frame.
+export const EXTENSION_ID = 'lbioenmpdlmanbhhkfdjjnklhnmkhjlb';
+export const EXTENSION_DIR = path.join(APP_ROOT, 'extension');
+
 /**
  * Personal data (mail cache, tokens, transcripts) lives in the per-user data directory,
  * never inside the app folder — so zipping the app folder to share it can't leak anything.

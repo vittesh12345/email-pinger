@@ -48,6 +48,7 @@ For the meeting pop-up with a non-Outlook calendar, add its private `.ics` link 
 ## Use it alongside your mail
 
 - **Mini window** (button in the sidebar, or Settings → Use alongside your mail): a compact panel with what needs a reply, nudges, due follow-ups and the meeting-start prompt. In Chrome and Edge it floats on top of every other window, so it stays visible over Outlook. In other browsers it opens as an ordinary small window.
+- **Browser side panel:** docks Pinger beside the page you are on, such as Outlook on the web. In Chrome or Edge open `chrome://extensions` (Edge: `edge://extensions`), turn on **Developer mode**, choose **Load unpacked**, and select the `extension` folder inside this folder. Then click the Pinger icon in the toolbar. The panel shows the same compact view as the mini window, and says so if Pinger is not running.
 - **Install as an app:** in Chrome or Edge use the install icon in the address bar. Pinger then has its own window and taskbar icon.
 - Keys `1`–`5` switch between Overview, Emails, Follow-ups, Meetings and Settings.
 
@@ -94,7 +95,8 @@ Your personal data is **not** in this folder — it lives in your user profile (
 - Pinger only works while it is running on your computer. It is not a cloud service and does not ping your phone.
 - It looks at the last 14 days of mail by default.
 - Outlook and Gmail/IMAP connections are covered by automated tests against simulated servers; live transcription depends on your browser.
-- It is not an Outlook add-in: it does not appear inside the Outlook window. The mini window is the way to keep it next to your mail.
+- It is not an Outlook add-in: it does not appear inside the Outlook desktop app. Use the side panel (Outlook on the web) or the mini window (any mail app) to keep it next to your mail.
+- The side panel and mini window change where Pinger is shown. Reading Outlook mail still needs the one-time Microsoft registration above.
 
 ## Options
 
@@ -125,4 +127,5 @@ npm start
 - `src/ai/` — the Claude API client and prompts.
 - `src/scheduler.js` — the loop that syncs mail and fires pings.
 - `public/` — the interface (Preact, no build step).
+- `extension/` — the Chrome/Edge side-panel extension (a frame around the compact view).
 - `test/` — `node --test` suites; no network access needed.

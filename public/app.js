@@ -18,7 +18,8 @@ import { Settings } from './views/settings.js';
 let source = null;
 let stateTimer = null;
 
-const canNotify = () => 'Notification' in window && Notification.permission === 'granted';
+// Inside the browser side panel Pinger runs in a frame, where desktop notifications are not available.
+const canNotify = () => window.top === window && 'Notification' in window && Notification.permission === 'granted';
 
 function scheduleStateRefresh() {
   clearTimeout(stateTimer);

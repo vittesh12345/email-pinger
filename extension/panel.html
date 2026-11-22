@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Pinger</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <iframe id="app" title="Pinger" hidden></iframe>
+    <main id="offline" hidden>
+      <h1>Pinger is not running</h1>
+      <p>Start Pinger on this computer: <code>start.command</code> (Mac), <code>start.bat</code> (Windows) or <code>./start.sh</code> (Linux).</p>
+      <p>This panel connects on its own once Pinger is up.</p>
+      <button id="retry" type="button">Retry</button>
+    </main>
+    <script src="panel.js"></script>
+  </body>
+</html>

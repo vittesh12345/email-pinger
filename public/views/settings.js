@@ -185,6 +185,7 @@ function Rules() {
 }
 
 function Windows() {
+  const { state } = useStore();
   return html`<${Section} id="window" title="Use alongside your mail" sub="Keep Pinger visible while you work in Outlook or another mail app">
     <div class="setting-row">
       <div class="text">
@@ -192,6 +193,16 @@ function Windows() {
         <div class="small muted">A small panel with what needs a reply, nudges, due follow-ups and the meeting-start prompt. In Chrome and Edge it stays on top of other windows.</div>
       </div>
       <button class="btn" onClick=${popOut}><${Icon} name="panel" /> Open mini window</button>
+    </div>
+    <div class="setting-row">
+      <div class="text">
+        <strong>Browser side panel</strong>
+        <div class="small muted">
+          Docks Pinger beside the page you are on, such as Outlook on the web. Chrome or Edge: open <code>chrome://extensions</code> (Edge:
+          <code>edge://extensions</code>), turn on Developer mode, choose Load unpacked, and select this folder:
+          <code>${state.extensionDir}</code>. Then click the Pinger icon in the toolbar.
+        </div>
+      </div>
     </div>
     <div class="setting-row">
       <div class="text">

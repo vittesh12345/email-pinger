@@ -6,7 +6,7 @@ import express from 'express';
 import { createAccount, deleteAccount, getAccount, listAccounts, publicAccount } from './accounts.js';
 import { aiConfig, aiEnabled } from './ai/client.js';
 import { draftEmail } from './ai/tasks.js';
-import { APP_ROOT, dataDir, readSharedConfig, VERSION, writeSharedConfig } from './config.js';
+import { APP_ROOT, dataDir, EXTENSION_DIR, EXTENSION_ID, readSharedConfig, VERSION, writeSharedConfig } from './config.js';
 import { getEvent, setPromptState, upcomingEvents } from './core/calendar.js';
 import { createFollowup, deleteFollowup, dueFollowups, listFollowups, updateFollowup } from './core/followups.js';
 import {
@@ -89,7 +89,7 @@ export function createApp() {
         res.set('Cache-Control', 'no-cache');
         res.set(
           'Content-Security-Policy',
-          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+          `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors chrome-extension://${EXTENSION_ID}; base-uri 'none'; form-action 'none'`,
         );
       },
     }),
@@ -117,6 +117,7 @@ export function createApp() {
       counts: overview.counts,
       nextOverviewAt: next ? next.toISOString() : null,
       dataDir: dataDir(),
+      extensionDir: EXTENSION_DIR,
       demoEmail: DEMO_EMAIL,
     };
   }

@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Pinger side panel",
+  "version": "0.1.0",
+  "description": "Shows Pinger in the browser side panel, next to your mail.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt2vwSE6xd1UB+SuX2uowdYIkbHyHI/n3grMoQLl+ozDfIfVwMatUNNCZFVSM4KEikbtnDlzshM2QTVWVhFdco9e+LusH8ICije++nyHr/XwJxpP7G/s6VJxMSzawMHq4Y8rCvZEFM+x+eKs0nz87x7zPwpEDqOkbVTH5fLhfH3WcmXO4Ksbwhdn+ehV1rronfylkkxrmoijgWSC1bQbC76C7XKV4vGLK4O6DUJgLUWTBKLrFfhvhnL30TCecgol/5EO/01plPuq0J9fmU0s6l8w/5YJJ0uc8m9GukA5nX7oblkEwjdFIoe9z2X6PHWZlNvSDZ1hD7G6NSO46kPcYAQIDAQAB",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "http://localhost:4317/*"
+  ],
+  "action": {
+    "default_title": "Open Pinger in the side panel",
+    "default_icon": {
+      "16": "icon-16.png",
+      "32": "icon-32.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  }
+}
